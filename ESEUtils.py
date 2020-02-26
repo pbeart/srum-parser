@@ -25,11 +25,14 @@ def parse_ese_value(raw_value, column_type):
     # 16 - 128-bit GUID
     # 17 - Unsigned 16-bit Int (Unsigned short)
 
+    if raw_value is None: return None
+
     format_lookup = {1: "?", # Bool
                      2: "B", # Unsigned Byte
                      3: "h", # Signed short
                      4: "i", # Int
-                     6: "d", # Double
+                     6: "f", # float
+                     7: "d", # double
                      10: "{}s".format(len(raw_value)), # Text
                      12: "{}s".format(len(raw_value)), # Large Text
                      14: "I", # Unsigned Int
@@ -50,12 +53,14 @@ def parse_ese_value(raw_value, column_type):
     # https://docs.microsoft.com/en-us/office/vba/language/reference/user-interface-help/currency-data-type
     elif column_type == 5:  # 64-bit currency
         pass
-    elif column_type == 7: # 64-bit float
-        pass
     elif column_type == 8: # 64-bit application time
-        microseconds = struct.unpack("Q", raw_value)[0] / 10.0 # Interpret as unsigned 64-bit value
-        print(microseconds)
-        return datetime.datetime(1601,1,1) + datetime.timedelta(microseconds=microseconds)
+        microseconds = struct.unpack("<Q", raw_value)[0] / 10.0 # Interpret as unsigned 64-bit value
+        #print(microseconds/(10*1000*1000*60*60*24*365))
+        try:
+            return datetime.datetime(1601,1,1) + datetime.timedelta(microseconds=microseconds)
+        except OverflowError: # Not a valid FILETIME, try parsing as OLE
+            as_float = struct.unpack("<d", raw_value)[0]
+            return datetime.datetime(1900,1,1) + datetime.timedelta(days=as_float)
 
     elif column_type == 9: # Binary data
         return repr(raw_value)
@@ -70,6 +75,15 @@ def parse_ese_value(raw_value, column_type):
         as_hex = raw_value.hex().zfill(32) # 32 chars long, to represent 16 bytes
         return "{"+as_hex[:8]+"-"+as_hex[8:12]+"-"+as_hex[12:14]+"-"+as_hex[14:16]+"-"+as_hex[16:32]+"}"
 
-#print(parse_ese_value(b"\xde\xad\xbe\xef\xfe\xed\xbe\xee\xde\xad\xbe\xef\xfe\xed\xbe\xee", 16))
+def record_as_list(record):
+    "Helper for reading pyesedb records as lists of python objects"
 
-#print(parse_ese_value(b"\x00\xaaaasdasdasdasd", 10))
+    out_list = []
+    for column_index in range(record.number_of_values):
+        
+        value_type = record.get_column_type(column_index)
+        raw_value = record.get_value_data(column_index)
+
+        out_list.append(parse_ese_value(raw_value, value_type))
+
+    return out_list

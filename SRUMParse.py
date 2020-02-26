@@ -1,19 +1,22 @@
 import pyesedb
-import SRUMUtils
+import ESEUtils
 
-def record_as_list(record):
-    "Helper for reading pyesedb records as lists of python objects"
+import struct
 
-    out_list = []
+def SID_bytes_to_string(sid_bytes):
+    revision = sid_bytes[0]
+    authority_count = sid_bytes[1]
 
-    for column_index in range(record.number_of_values):
-        
-        value_type = record.get_column_type(column_index)
-        raw_value = record.get_value_data(column_index)
+    # Parse a 48-bit unsigned big-endian value by unpacking it as a 64-bit value
+    # with two null bytes at the start
+    identifier_authority = struct.unpack(">Q", b"\0\0"+sid_bytes[2:8])[0]
 
-        out_list.append(SRUMUtils.parse_ese_value(raw_value, value_type))
+    # Parse identifier_authority number of 4 byte chunks into little endian
+    # unsigned ints
+    authorities = [struct.unpack("<I", sid_bytes[8+offset*4:12+offset*4])[0] for offset in range(authority_count)]
 
-    return out_list
+    return "S-{}-{}-{}".format(revision, identifier_authority, "-".join(map(str, authorities)))
+
 
 class SRUMParser:
     """Class to manage parsing of SRUM .ESE databases.
@@ -23,4 +26,8 @@ class SRUMParser:
         self.esedb.open_file_object(fileObject)
         self.raw_tables = self.esedb.tables
 
-    def 
+    def table_rows(self, table):
+        for record in table.records:
+            yield ESEUtils.record_as_list(record)
+
+print(SID_bytes_to_string(b'\x01\x03\x00\x00\x00\x00\x00\x05Z\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00'))
