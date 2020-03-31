@@ -79,10 +79,9 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
             else:
                 value = repr(row[2])
             SruDbIdMap[row[1]] = value
-        
 
 
-        network_usage_monitor = 
+
         print(datetime.datetime.now().strftime("%H:%M:%S.%f"))
         for record in network_usage_monitor.records:
             pass
