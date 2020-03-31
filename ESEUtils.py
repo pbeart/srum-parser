@@ -4,7 +4,8 @@ import datetime
 
 def parse_ese_value(raw_value, column_type):
     "Parse a value from an ESE database record into a Python object "\
-    "using the given column_type enum."
+    "using the given column_type enum. Returns strings/byte arrays in"\
+    "their 'raw' form, i.e. bytes if encoding is not known"
     # Value type enums: (python struct module name)
     # 0 - Nil (Invalid column type)
     # 1 - Bool (bool, or None)
@@ -41,10 +42,20 @@ def parse_ese_value(raw_value, column_type):
     
     if column_type in format_lookup:
         try:
-            return struct.unpack("<"+format_lookup[column_type], raw_value)[0]
+            unpacked = struct.unpack("<"+format_lookup[column_type], raw_value)[0]
+            
+            if column_type in [10,12]: # Text
+                try:
+                    return unpacked.decode("utf-16")
+                except UnicodeDecodeError:
+                    return unpacked.decode("utf-8")
+                finally:
+                    return unpacked
+            else:
+                return unpacked
         except struct.error as e:
             raise e
-            return repr(raw_value)
+            return raw_value
 
     if column_type == 0: # Nil
         return None
@@ -52,7 +63,7 @@ def parse_ese_value(raw_value, column_type):
     # 64-bit currency, appears to be equivalent to the datatype documented in:
     # https://docs.microsoft.com/en-us/office/vba/language/reference/user-interface-help/currency-data-type
     elif column_type == 5:  # 64-bit currency
-        pass
+        return None
     elif column_type == 8: # 64-bit application time
         microseconds = struct.unpack("<Q", raw_value)[0] / 10.0 # Interpret as unsigned 64-bit value
         #print(microseconds/(10*1000*1000*60*60*24*365))
@@ -63,13 +74,13 @@ def parse_ese_value(raw_value, column_type):
             return datetime.datetime(1900,1,1) + datetime.timedelta(days=as_float)
 
     elif column_type == 9: # Binary data
-        return repr(raw_value)
+        return raw_value
 
     elif column_type == 11: # Large binary data
-        return repr(raw_value)
+        return raw_value
 
     elif column_type == 13: # Super long value
-        return repr(raw_value) # MSDN describes SLV as obsolete
+        return raw_value # MSDN describes SLV as obsolete
 
     elif column_type == 16: # 128-bit GUID
         as_hex = raw_value.hex().zfill(32) # 32 chars long, to represent 16 bytes
@@ -85,5 +96,5 @@ def record_as_list(record):
         raw_value = record.get_value_data(column_index)
 
         out_list.append(parse_ese_value(raw_value, value_type))
-
+        #print(value_type)
     return out_list
