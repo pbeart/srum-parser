@@ -46,8 +46,8 @@ class TestParseEseValues:
         assert ESEUtils.parse_ese_value(b'\xde\xad\xbe\xef', 11) == repr(b'\xde\xad\xbe\xef') # large binary
 
     def test_text_largetext(self):
-        assert ESEUtils.parse_ese_value(b'ham sandwiches', 10) == b"ham sandwiches" # text
-        assert ESEUtils.parse_ese_value(b'sam handwiches', 12) == b"sam handwiches" # large text
+        assert ESEUtils.parse_ese_value(b'ham sandwiches', 10) == "ham sandwiches" # text
+        assert ESEUtils.parse_ese_value(b'sam handwiches', 12) == "sam handwiches" # large text
 
     def test_unsigned_int(self):
         assert ESEUtils.parse_ese_value(b"\xff\xff\xff\xff", 14) == 4294967295

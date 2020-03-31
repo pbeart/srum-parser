@@ -1,8 +1,11 @@
 import click
 import SRUMParse
-from openpyxl import Workbook
+from openpyxl import Workbook, styles
 
 import datetime
+
+ERROR_FONT = styles.Font(color=styles.colors.RED)
+
 
 @click.command()
 @click.option("--input", "-i", required=True, type=click.Path(exists=True,
@@ -50,8 +53,13 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
 
 
     if not only_processed:
-
+        n = 0
         for table in parser.raw_tables:
+            if n<10:
+                n+=1
+                #if table.name != 
+                #continue
+            
             sheet_name = table_aliases[table.name] if table.name in table_aliases else table.name
             print(sheet_name)
             worksheet = out_workbook.create_sheet(sheet_name)
@@ -65,23 +73,43 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
             worksheet.append([col.name for col in table.columns])
 
             for row in parser.table_rows(table):
-                worksheet.append(row)
+                nrow = [ESEUtils.value_to_safe_string SRUMParse.remove_illegal_characters(col) if type(col) == str else col for col in row]
+                try:
+                    worksheet.append(nrow)
+                except Exception as e:
+                    print("eee D:<")
+                    for col in nrow:
+                        try:
+                            worksheet.append([col])
+                        except Exception as e:
+                            print(type(col))
+                            raise e
+                    
 
     if not omit_processed:
-        SruDbIdMapTable = [table for table in parser.raw_tables if table.name == "SruDbIdMapTable"][0]
+        SruDbIdMapTable = [table for table in parser.raw_tables if table.name=="SruDbIdMapTable"][0]
         SruDbIdMap = {}
         for row in parser.table_rows(SruDbIdMapTable):
+            
             value_type = row[0]
-            if value_type in [0, 1, 2]: # UTF-16 string
+            if value_type == 0 or row[2] == None:
+                value = None
+            elif value_type in [1, 2]: # UTF-16 string
+                print("found utf-16 string",repr(row[2]), repr(row[2].encode("utf-16")))
                 value = row[2].encode("utf-16")
             elif value_type == 3: # Windows SID
-                value = SRUMParse.SID_bytes_to_string(row[2])
+                try:
+                    value = SRUMParse.SID_bytes_to_string(row[2].encode("utf-8"))
+                except Exception as e:
+                    print(row)
+                    raise e
             else:
                 value = repr(row[2])
             SruDbIdMap[row[1]] = value
+        
+        #print(SruDbIdMap)
 
-
-
+        network_usage_monitor = None
         print(datetime.datetime.now().strftime("%H:%M:%S.%f"))
         for record in network_usage_monitor.records:
             pass
