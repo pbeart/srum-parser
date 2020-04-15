@@ -1,8 +1,11 @@
+import datetime
+
 import click
-import SRUMParse
 from openpyxl import Workbook, styles
 
-import datetime
+import SRUMParse
+import XLSXOutUtils
+
 
 ERROR_FONT = styles.Font(color=styles.colors.RED)
 
@@ -33,47 +36,30 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
 
     source_file = open(input, "rb")
 
-    if include_registry is None:
-        parser = SRUMParse.SRUMParser(source_file)
-    else:
-        parser = SRUMParse.SRUMParser(source_file, registryFolder=include_registry)
+    
 
     out_workbook = Workbook()
 
-    table_aliases = { # To keep worksheet names under 31 characters
-        "{973F5D5C-1D90-4944-BE8E-24B94231A174}": "Network Data Usage Monitor",
-        "{D10CA2FE-6FCF-4F6D-848E-B2E99266FA89}": "Application Resource Usage",
-        "{DA73FB89-2BEA-4DDC-86B8-6E048C6DA477}": "Energy Estimator ...6DA477}",
-        "{DD6636C4-8929-4683-974E-22C046A43763}": "Network Conn. Usage Monitor",
-        "{FEE4E14F-02A9-4550-B5CE-5FA2DA202E37}": "Energy Usage",
-        "{FEE4E14F-02A9-4550-B5CE-5FA2DA202E37}LT": "Long-term Energy Usage",
-        "{D10CA2FE-6FCF-4F6D-848E-B2E99266FA86}": "Push Notifications",
-        "{5C8CF1C7-7257-4F13-B223-970EF5939312}": "Energy Estimator ...939312}"
-    }
+    
 
 
     if not only_processed:
-        n = 0
-        for table in parser.raw_tables:
-            if n<10:
-                n+=1
-                #if table.name != 
-                #continue
+        if include_registry is None:
+            parser = SRUMParse.SRUMParser(source_file)
+        else:
+            parser = SRUMParse.SRUMParser(source_file, registryFolder=include_registry)
             
-            sheet_name = table_aliases[table.name] if table.name in table_aliases else table.name
-            print(sheet_name)
+        for table in parser.raw_tables:
+            print(table.name)
+            sheet_name = SRUMParse.short_table_name(table.name, False)
             worksheet = out_workbook.create_sheet(sheet_name)
 
-            if sheet_name != table.name:
-                full_name = "{0} ({1})".format(table.name, sheet_name)
-            else:
-                full_name = table.name
-            worksheet.append(["Full Table Name:", full_name])
+            worksheet.append(["Full Table Name:", table.name])
 
             worksheet.append([col.name for col in table.columns])
 
             for row in parser.table_rows(table):
-                nrow = [ESEUtils.value_to_safe_string SRUMParse.remove_illegal_characters(col) if type(col) == str else col for col in row]
+                nrow = [XLSXOutUtils.value_to_safe_string(col) for col in row]
                 try:
                     worksheet.append(nrow)
                 except Exception as e:
@@ -83,49 +69,93 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
                             worksheet.append([col])
                         except Exception as e:
                             print(type(col))
+                            print([x for x in col])
                             raise e
                     
 
     if not omit_processed:
+        if include_registry is None:
+            parser = SRUMParse.SRUMParser(source_file)
+        else:
+            parser = SRUMParse.SRUMParser(source_file, registryFolder=include_registry)
+
         SruDbIdMapTable = [table for table in parser.raw_tables if table.name=="SruDbIdMapTable"][0]
         SruDbIdMap = {}
+        SruDbIdStartTime = datetime.datetime.now()
         for row in parser.table_rows(SruDbIdMapTable):
             
             value_type = row[0]
             if value_type == 0 or row[2] == None:
                 value = None
             elif value_type in [1, 2]: # UTF-16 string
-                print("found utf-16 string",repr(row[2]), repr(row[2].encode("utf-16")))
-                value = row[2].encode("utf-16")
+                value = row[2].decode("utf-16")
             elif value_type == 3: # Windows SID
                 try:
-                    value = SRUMParse.SID_bytes_to_string(row[2].encode("utf-8"))
+                    value = SRUMParse.SID_bytes_to_string(row[2])
                 except Exception as e:
                     print(row)
                     raise e
             else:
                 value = repr(row[2])
             SruDbIdMap[row[1]] = value
+
+        print("Built SruDbIdMapTable in ", datetime.datetime.now()-SruDbIdStartTime)
+        # --------------------------------
+        # -------- PARSING TABLES --------
+        # --------------------------------
+
+        parser = SRUMParse.SRUMParser(source_file)
+
+        for table in parser.raw_tables:
+            print(table.name)
+            rows = []
+            column_names = []
+
+            # --- Network Usage Data Monitor {973F5D5C-1D90-4944-BE8E-24B94231A174} ---
+            if table.name == "{973F5D5C-1D90-4944-BE8E-24B94231A174}":
+                worksheet = out_workbook.create_sheet(SRUMParse.short_table_name(table.name, True))
+
+                column_inserts = [[3, "EvaluatedAppId"], [5, "EvaluatedUserId"], [6, "InterfaceLuid_IfType"], [6, "InterfaceLuid_NetLuidIndex"]]
+
+                column_names = [col.name for col in table.columns]
+
+                for insert in column_inserts:
+                    column_names.insert(insert[0], insert[1])
+
+                worksheet.append(column_names)
+
+                for row, raw_row in zip(parser.table_rows(table), parser.raw_table_rows(table)):
+                    out_row = row[:]
+                    
+                    luid_parsed = SRUMParse.parse_interface_luid(parser.row_element_by_column_name(raw_row, "InterfaceLuid", table))
+
+                    for insert in column_inserts:
+                        if insert[1] == "EvaluatedAppId":
+                            value = SruDbIdMap[parser.row_element_by_column_name(row, "AppId", table)]
+                            #value = parser.row_element_by_column_name(row, "AppId", table)
+                        elif insert[1] == "EvaluatedUserId":
+                            value = SruDbIdMap[parser.row_element_by_column_name(row, "UserId", table)]
+                            #value = parser.row_element_by_column_name(row, "UserId", table)
+                        elif insert[1] == "InterfaceLuid_IfType":
+                            value = luid_parsed["iftype"]
+
+                        elif insert[1] == "InterfaceLuid_NetLuidIndex":
+                            value = luid_parsed["netluid_index"]
+                            
+                        else:
+                            value = "Could not parse value"
+                        out_row.insert(insert[0], XLSXOutUtils.value_to_safe_string(value))
+
+                    worksheet.append(out_row)
+            else:
+                continue # Not one of the handled sheets
+
+
+            worksheet.append(["(Processed) Full Table Name:", table.name])
+            worksheet.append(column_names)
         
-        #print(SruDbIdMap)
-
-        network_usage_monitor = None
-        print(datetime.datetime.now().strftime("%H:%M:%S.%f"))
-        for record in network_usage_monitor.records:
-            pass
-            
-        print("Done!")
-        print(datetime.datetime.now().strftime("%H:%M:%S.%f"))
-        input()
-
-
-
-
-
-
         
-        
-    out_workbook.remove(out_workbook["Sheet"])
+    out_workbook.remove(out_workbook["Sheet"]) # Remove default sheet
     out_workbook.save(output)
 
 

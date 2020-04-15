@@ -2,14 +2,8 @@
 
 import pyesedb
 import ESEUtils
-
+import parseHeaderDefines
 import struct
-
-def remove_illegal_characters(string):
-    """Strip all characters that cannot be stored in an .xlsx file from the
-    provided string"""
-    string = string.replace("\x00", "")
-    return string.encode('unicode_escape').decode('utf-8')
 
 def SID_bytes_to_string(sid_bytes):
     revision = sid_bytes[0]
@@ -33,6 +27,40 @@ def SID_bytes_to_string(sid_bytes):
 
     return "S-{}-{}-{}".format(revision, identifier_authority, "-".join(map(str, authorities)))
 
+def parse_interface_luid(luid_bytes):
+    # https://docs.microsoft.com/en-gb/windows/win32/api/ifdef/ns-ifdef-net_luid_lh
+    
+    iftypes_hfile = parseHeaderDefines.HeaderFile("headers\\ipifcons.h")
+
+    reserved = luid_bytes[:3]
+    netluid_index = luid_bytes[3:6]
+    iftype = luid_bytes[6:8]
+
+
+    iftype_index = struct.unpack("<H", iftype)[0] # As an int
+
+    iftype_name = iftypes_hfile.get_value_name(iftype_index)
+
+    iftype_nameindex = "{} (#{})".format(iftype_name, iftype_index)
+
+    return {"reserved": reserved, "netluid_index": netluid_index, "iftype": iftype_nameindex}
+
+def short_table_name(table_name, processed):
+    prefix = "(P) " if processed else ""
+    table_aliases = { # To keep worksheet names under 31 characters
+        "{973F5D5C-1D90-4944-BE8E-24B94231A174}": "Network Data Usage Monitor",
+        "{D10CA2FE-6FCF-4F6D-848E-B2E99266FA89}": "Application Resource Usage",
+        "{DA73FB89-2BEA-4DDC-86B8-6E048C6DA477}": "Energy Estimator ...6DA477}",
+        "{DD6636C4-8929-4683-974E-22C046A43763}": "Network Conn. Usage Monitor",
+        "{FEE4E14F-02A9-4550-B5CE-5FA2DA202E37}": "Energy Usage",
+        "{FEE4E14F-02A9-4550-B5CE-5FA2DA202E37}LT": "Long-term Energy Usage",
+        "{D10CA2FE-6FCF-4F6D-848E-B2E99266FA86}": "Push Notifications",
+        "{5C8CF1C7-7257-4F13-B223-970EF5939312}": "Energy Estimator ...939312}"
+    }
+    if table_name in table_aliases:
+        return prefix + table_aliases[table_name]
+    else:
+        return prefix + "Unknown Table ..." + table_name[-7:]
 
 class SRUMParser:
     """Class to manage parsing of SRUM .ESE databases.
@@ -44,13 +72,43 @@ class SRUMParser:
 
     def table_rows(self, table):
         for record in table.records:
-            yield ESEUtils.record_as_list(record)
+            yield self.record_as_list(record)
+
+    def raw_table_rows(self, table):
+        for record in table.records:
+            yield self.record_as_raw_list(record)
+
+    def record_as_list(self, record):
+        "Helper for reading pyesedb records as lists of python objects"
+
+        out_list = []
+        for column_index in range(record.number_of_values):
+            
+            value_type = record.get_column_type(column_index)
+            raw_value = record.get_value_data(column_index)
+
+            out_list.append(ESEUtils.parse_ese_value(raw_value, value_type))
+
+        return out_list
+
+    def record_as_raw_list(self, record):
+        "Helper for reading pyesedb records as lists of python objects"
+
+        out_list = []
+        for column_index in range(record.number_of_values):
+            raw_value = record.get_value_data(column_index)
+            out_list.append(raw_value)
+
+        return out_list
+
+    def row_element_by_column_name(self, row, column, table):
+        column_names = [table.get_column(x).name for x in range(table.number_of_columns)]
+        #print(column_names)
+        column_index = column_names.index(column)
+
+        return row[column_index]
+
+
 
 #print(SID_bytes_to_string(b'\x01\x03\x00\x00\x00\x00\x00\x05Z\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00'))
 
-def value_to_safe_string(value):
-    """Convert a Python value to a string that can be safely handled in a .xlsx
-    file by openpyxl"""
-    if isinstance(value, (str, datetime.datetime, float, int)):
-        return value
-    return repr(value)

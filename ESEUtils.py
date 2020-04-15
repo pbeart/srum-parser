@@ -28,18 +28,20 @@ def parse_ese_value(raw_value, column_type):
 
     if raw_value is None: return None
 
-    format_lookup = {1: "?", # Bool
-                     2: "B", # Unsigned Byte
-                     3: "h", # Signed short
-                     4: "i", # Int
-                     6: "f", # float
-                     7: "d", # double
-                     10: "{}s".format(len(raw_value)), # Text
-                     12: "{}s".format(len(raw_value)), # Large Text
-                     14: "I", # Unsigned Int
-                     15: "q", # Signed Long Long Int
-                     17: "H"} # Unsigned short
-    
+    format_lookup = {
+                    1: "?", # Bool
+                    2: "B", # Unsigned Byte
+                    3: "h", # Signed short
+                    4: "i", # Int
+                    6: "f", # float
+                    7: "d", # double
+                    10: "{}s".format(len(raw_value)), # Text
+                    12: "{}s".format(len(raw_value)), # Large Text
+                    14: "I", # Unsigned Int
+                    15: "q", # Signed Long Long Int
+                    17: "H" # Unsigned short
+                    }
+
     if column_type in format_lookup:
         try:
             unpacked = struct.unpack("<"+format_lookup[column_type], raw_value)[0]
@@ -86,15 +88,3 @@ def parse_ese_value(raw_value, column_type):
         as_hex = raw_value.hex().zfill(32) # 32 chars long, to represent 16 bytes
         return "{"+as_hex[:8]+"-"+as_hex[8:12]+"-"+as_hex[12:14]+"-"+as_hex[14:16]+"-"+as_hex[16:32]+"}"
 
-def record_as_list(record):
-    "Helper for reading pyesedb records as lists of python objects"
-
-    out_list = []
-    for column_index in range(record.number_of_values):
-        
-        value_type = record.get_column_type(column_index)
-        raw_value = record.get_value_data(column_index)
-
-        out_list.append(parse_ese_value(raw_value, value_type))
-        #print(value_type)
-    return out_list
