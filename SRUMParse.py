@@ -103,10 +103,15 @@ class SRUMParser:
 
     def row_element_by_column_name(self, row, column, table):
         column_names = [table.get_column(x).name for x in range(table.number_of_columns)]
-        #print(column_names)
         column_index = column_names.index(column)
 
         return row[column_index]
+
+    def row_index_by_column_name(self, column, table):
+        column_names = [table.get_column(x).name for x in range(table.number_of_columns)]
+        column_index = column_names.index(column)
+
+        return column_index
 
 
 
