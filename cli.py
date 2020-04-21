@@ -22,8 +22,9 @@ ERROR_FONT = styles.Font(color=styles.colors.RED)
                                                                dir_okay=False,
                                                                writable=True))
 
-@click.option("--include-registry", "-r", required=False, type=click.Path(exists=True,
-                                                                          file_okay=False))
+# Not currently implemented
+# click.option("--include-registry", "-r", required=False, type=click.Path(exists=True,
+#                                                                          file_okay=False))
 
 @click.option("--omit-processed", "-p", is_flag=True, default=False)
 
@@ -250,7 +251,7 @@ def export_xlsx(ctx, input, output, include_registry, omit_processed, only_proce
                             else:
                                 value = "Could not parse value"
                             out_dict[insert[1]] = XLSXOutUtils.value_to_safe_string(value)
-                            
+
                     # --- Push Notifications {D10CA2FE-6FCF-4F6D-848E-B2E99266FA86} ---
                     elif table.name == "{D10CA2FE-6FCF-4F6D-848E-B2E99266FA86}":
                         for insert in column_inserts:
