@@ -5,7 +5,7 @@ A tool to assist with parsing the SRUDB.dat ESE database
 ## Installation
 1. Get the repository on your computer by cloning the repository or downloading as a zip file and unzipping to a sensible place
 1. Install the dependencies in requirements.txt with `pip install -r requirements.txt`
-1. Install [pyesedb](https://www.google.com) by cloning the repository then building the Python bindings using the instructions [here](https://github.com/libyal/libesedb/wiki/Building#using-setuppy)
+1. Optionally add srum-parser to your PATH, to allow you to use it from anywhere
 
 ## Usage
 

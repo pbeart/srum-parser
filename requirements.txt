@@ -1,0 +1,4 @@
+Click==7.0
+CppHeaderParser==2.7.4
+libesedb-python==20191220
+pytest==5.2.0
