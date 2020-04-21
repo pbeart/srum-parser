@@ -1,3 +1,5 @@
+"Main command-line interface for program"
+
 import datetime
 
 import click
@@ -23,26 +25,19 @@ ERROR_FONT = styles.Font(color=styles.colors.RED)
 @click.option("--include-registry", "-r", required=False, type=click.Path(exists=True,
                                                                           file_okay=False))
 
-@click.option("--force-overwrite", "-f", is_flag=True, default=False)
-
 @click.option("--omit-processed", "-p", is_flag=True, default=False)
 
 @click.option("--only-processed", "-P", is_flag=True, default=False)
 
 @click.pass_context
-def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_processed, only_processed):
+def export_xlsx(ctx, input, output, include_registry, omit_processed, only_processed):
     "Parse and export SRUM data from the --input provided ESE database file " \
     "to an .xlsx file in the --output directory, optionally including the SRUM " \
     "entries found in the registry in the folder provided by --include-registry."
 
     source_file = open(input, "rb")
 
-    
-
     out_workbook = Workbook()
-
-    
-
 
     if not only_processed:
         if include_registry is None:
@@ -51,7 +46,7 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
             parser = SRUMParse.SRUMParser(source_file, registryFolder=include_registry)
             
         for table in parser.raw_tables:
-            print(table.name)
+            print("Converting table", table.name)
             sheet_name = SRUMParse.short_table_name(table.name, False)
             worksheet = out_workbook.create_sheet(sheet_name)
 
@@ -64,24 +59,19 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
                 try:
                     worksheet.append(nrow)
                 except Exception as e:
-                    print("eee D:<")
-                    for col in nrow:
-                        try:
-                            worksheet.append([col])
-                        except Exception as e:
-                            print(type(col))
-                            print([x for x in col])
-                            raise e
-                    
+                    print("Encountered exception while adding a row to the sheet,\
+                           this means that the row contains invalid characters.")
+                    raise
 
     if not omit_processed:
-        if include_registry is None:
-            parser = SRUMParse.SRUMParser(source_file)
-        else:
-            parser = SRUMParse.SRUMParser(source_file, registryFolder=include_registry)
+        parser = SRUMParse.SRUMParser(source_file)
 
         SruDbIdMapTable = [table for table in parser.raw_tables if table.name=="SruDbIdMapTable"][0]
         SruDbIdMap = {}
+
+        # Build a dict of items in the SruDbIdMapTable table, so values such as AppIds and UserIds
+        # can be looked up without having to iterate over the entire table each time
+        print("Building SruDbIdMapTable")
         SruDbIdStartTime = datetime.datetime.now()
         for row in parser.table_rows(SruDbIdMapTable):
             
@@ -110,13 +100,13 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
 
         for table in parser.raw_tables:
             
-            print(table.name)
+            print("Processing table", table.name)
             if table.name in ["{973F5D5C-1D90-4944-BE8E-24B94231A174}",
                               "{D10CA2FE-6FCF-4F6D-848E-B2E99266FA89}",
                               "{DD6636C4-8929-4683-974E-22C046A43763}",
                               "{D10CA2FE-6FCF-4F6D-848E-B2E99266FA86}",
                               "{5C8CF1C7-7257-4F13-B223-970EF5939312}",
-                              "{FEE4E14F-02A9-4550-B5CE-5FA2DA202E37}"]: # Is it handled?
+                              "{FEE4E14F-02A9-4550-B5CE-5FA2DA202E37}"]: # Is this table handled?
                 column_names = []
                 worksheet = out_workbook.create_sheet(SRUMParse.short_table_name(table.name, True))
                 worksheet.append(["Original Table Name:", table.name])
@@ -192,10 +182,10 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
                 worksheet.append(column_names)
 
                 # Processing
-                n = 0
+                # Creates a dict of column names and their values, so that columns can be inserted
+                # without needing to do complex shuffling. This dict is then converted back into
+                # a list before being added to the worksheet.
                 for row, raw_row in zip(parser.table_rows(table), parser.raw_table_rows(table)):
-                    n += 1
-                    if n>10: break
                     out_dict = {k:v for (k, v) in zip([col.name for col in table.columns], row)}
 
                     # --- Network Usage Data Monitor {973F5D5C-1D90-4944-BE8E-24B94231A174} ---
@@ -216,7 +206,6 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
                                 value = XLSXOutUtils.num_bytes_display(parser.row_element_by_column_name(row, "BytesSent", table))
                             elif insert[1] == "P_BytesRecvd":
                                 value = XLSXOutUtils.num_bytes_display(parser.row_element_by_column_name(row, "BytesRecvd", table))
-                                                            
                             else:
                                 value = "Could not parse value"
                             out_dict[insert[1]] = XLSXOutUtils.value_to_safe_string(value)
@@ -254,7 +243,6 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
                                 value = luid_parsed["iftype"]
                             elif insert[1] == "P_InterfaceLuid_NetLuidIndex":
                                 value = luid_parsed["netluid_index"]
-
                             elif insert[1] == "P_ConnectedTime":
                                 value = XLSXOutUtils.num_secs_display(parser.row_element_by_column_name(row, "ConnectedTime", table))
                             elif insert[1] == "P_ConnectStartTime":
@@ -262,6 +250,7 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
                             else:
                                 value = "Could not parse value"
                             out_dict[insert[1]] = XLSXOutUtils.value_to_safe_string(value)
+                            
                     # --- Push Notifications {D10CA2FE-6FCF-4F6D-848E-B2E99266FA86} ---
                     elif table.name == "{D10CA2FE-6FCF-4F6D-848E-B2E99266FA86}":
                         for insert in column_inserts:
@@ -349,24 +338,8 @@ def export_xlsx(ctx, input, output, include_registry, force_overwrite, omit_proc
                 continue # Not one of the handled sheets
 
 
-           
-        
-        
     out_workbook.remove(out_workbook["Sheet"]) # Remove default sheet
     out_workbook.save(output)
 
 
 export_xlsx()
-
-"""
-todo: Push Notifications payload size research and networktype
-
-L2profileflags
-
-l2profileid
-
-preset user/app id
-
-sheets todo:
-long term energy usage 
-"""

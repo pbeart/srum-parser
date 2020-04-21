@@ -1,3 +1,5 @@
+"Provide utilities to help when parsing an ESE database"
+
 import struct
 
 import datetime
