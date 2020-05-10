@@ -31,7 +31,7 @@ ERROR_FONT = styles.Font(color=styles.colors.RED)
 @click.option("--only-processed", "-P", is_flag=True, default=False)
 
 @click.pass_context
-def export_xlsx(ctx, input, output, include_registry, omit_processed, only_processed):
+def export_xlsx(ctx, input, output, omit_processed, only_processed):
     "Parse and export SRUM data from the --input provided ESE database file " \
     "to an .xlsx file in the --output directory, optionally including the SRUM " \
     "entries found in the registry in the folder provided by --include-registry."
@@ -41,10 +41,8 @@ def export_xlsx(ctx, input, output, include_registry, omit_processed, only_proce
     out_workbook = Workbook()
 
     if not only_processed:
-        if include_registry is None:
-            parser = SRUMParse.SRUMParser(source_file)
-        else:
-            parser = SRUMParse.SRUMParser(source_file, registryFolder=include_registry)
+        parser = SRUMParse.SRUMParser(source_file)
+
             
         for table in parser.raw_tables:
             print("Converting table", table.name)
