@@ -1,7 +1,6 @@
 "Main command-line interface for program"
 
 import datetime
-import click
 from openpyxl import Workbook, styles
 
 from srum_parser import SRUMParse
@@ -9,25 +8,10 @@ from srum_parser import XLSXOutUtils
 from srum_parser import ESEUtils
 from srum_parser import SRUMColumns
 
+from srum_parser.console_scripts import argument_parser
 ERROR_FONT = styles.Font(color=styles.colors.RED)
 
 
-@click.command()
-@click.option("--input",
-              "-i",
-              required=True,
-              type=click.Path(exists=True, dir_okay=False, writable=False))
-@click.option("--output",
-              "-o",
-              required=True,
-              type=click.Path(exists=False, dir_okay=False, writable=True))
-# Not currently implemented
-# click.option("--include-registry", "-r", required=False, type=click.Path(exists=True,
-#                                                                          file_okay=False))
-
-@click.option("--omit-processed", "-p", is_flag=True, default=False)
-@click.option("--only-processed", "-P", is_flag=True, default=False)
-@click.pass_context
 def export_xlsx(ctx, input, output, omit_processed, only_processed):
     "Parse and export SRUM data from the --input provided ESE database file " \
     "to an .xlsx file in the --output directory, optionally including the SRUM " \
@@ -439,5 +423,14 @@ def export_xlsx(ctx, input, output, omit_processed, only_processed):
     out_workbook.save(output)
 
 
+def main():
+    args = argument_parser.default()
+    for file in args.files:
+        export_xlsx(input=file,
+                    output=args.output_dir,
+                    omit_processed=args.omit_processed,
+                    only_processed=args.only_processed)
+
+
 if __name__ == "__main__":
-    export_xlsx()
+    main()

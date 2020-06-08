@@ -16,4 +16,4 @@ setuptools.setup(
         'console_scripts': ['parse-srum = srum_parser.console_scripts:main',]
     },
     include_package_data=False,
-    install_requires=['Click', 'CppHeaderParser', 'libesedb-python', 'pytest'])
+    install_requires=['CppHeaderParser', 'libesedb-python', 'pytest'])
